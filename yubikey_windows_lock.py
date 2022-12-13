@@ -1,16 +1,18 @@
 """ Yubikey Windows Lock
 Script to automatically lock your windows machine when yubikey gets removed
 
-usage: yubikey_windows_lock.py [-h] [-s SERIAL] [-w WAIT]
+usage: yubikey_windows_lock.py [-h] [-s SERIAL1 SERIAL2 SERIAL3] [-w WAIT]
 
 options:
   -h, --help            show this help message and exit
   -s SERIAL, --serial SERIAL
-                        Limit to yubikey with this serial number
+                        Limit to yubikey with this list of serial numbers
   -w WAIT, --wait WAIT  The time (in s) between two checks (default: 2)
 
 
 If imported this file will prvovide the class YubikeyWindowsLock.
+
+pip install --user yubikey-manager
 """
 from argparse import ArgumentParser
 from ctypes import windll
@@ -36,13 +38,15 @@ class YubikeyWindowsLock:
         _, self._state = scan_devices()
         self._keys = []
 
-    def _serial_sanity_check(self, serial: int) -> None:
+    def _serial_sanity_check(self, serial: list[int]) -> None:
         if not serial:
             return
-        if not str(serial).isdecimal():
-            raise ValueError("serial number contains illegal character")
-        if len(str(serial)) != 8:
-            raise ValueError("serial number must consist of 8 digits")
+
+        for s in serial:
+            if not str(s).isdecimal():
+                raise ValueError("serial number contains illegal character")
+		    #if len(str(s)) != 8:
+                #raise ValueError("serial number must consist of 8 digits")
 
     def _state_changed(self) -> bool:
         _, new_state = scan_devices()
@@ -54,13 +58,18 @@ class YubikeyWindowsLock:
     def _update_list_of_yubikeys(self) -> None:
         self._keys = [info.serial for _, info in list_all_devices()]
 
-    def _key_is_present(self, serial: int) -> bool:
+    def _key_is_present(self, serial: list[int]) -> bool:
+        allKeysPresent = False
+		
         if serial:
             self._serial_sanity_check(serial)
-            return serial in self._keys
+            for s in serial:
+                if s in self._keys:
+                    allKeysPresent = True
+            return allKeysPresent
         return len(self._keys) > 0
 
-    def monitor_system(self, wait_time: float = 2, serial: int = None) -> None:
+    def monitor_system(self, wait_time: float = 2, serial: list[int] = None) -> None:
         """
         Monitor the system in an endless loop and lock the screen if
         Yubikey is removed
@@ -69,7 +78,7 @@ class YubikeyWindowsLock:
         ----------
         wait_time : float, optional
             Time (in s) between two checks for status change (default: 2)
-        serial : int, optional
+        serial : list(int), optional
             Only monitor the Yubikey matching this serial number (default:
             don't limit to specific key)
         """
@@ -89,6 +98,7 @@ if __name__ == "__main__":
         type=int,
         default=None,
         help="Limit to yubikey with this serial number",
+		nargs='+',
     )
     parser.add_argument(
         "-w",
